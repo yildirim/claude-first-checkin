@@ -76,4 +76,46 @@ describe('feedback widget', () => {
     expect(ui.error.textContent).toMatch(/could not be sent/i);
     expect(ui.thanks.hidden).toBe(true);
   });
+
+  it('cannot be closed while feedback is being sent', async () => {
+    let resolveSend;
+    ui = setup(vi.fn(() => new Promise((resolve) => { resolveSend = resolve; })));
+    ui.toggle.click();
+    ui.textarea.value = 'Hello';
+    const sent = submit(ui.form);
+
+    expect(ui.toggle.disabled).toBe(true);
+    expect(ui.cancel.disabled).toBe(true);
+    ui.cancel.click();
+    ui.toggle.click();
+    expect(ui.form.hidden).toBe(false);
+
+    resolveSend();
+    await sent;
+    expect(ui.form.hidden).toBe(true);
+    expect(ui.thanks.hidden).toBe(false);
+    expect(ui.toggle.disabled).toBe(false);
+    expect(ui.cancel.disabled).toBe(false);
+  });
+
+  it('clears an old error when the form is reopened', async () => {
+    ui.toggle.click();
+    await submit(ui.form);
+    expect(ui.error.hidden).toBe(false);
+    ui.cancel.click();
+    ui.toggle.click();
+    expect(ui.error.hidden).toBe(true);
+  });
+
+  it('gives each widget its own label and textarea id', () => {
+    const app = document.getElementById('app');
+    const second = createFeedbackWidget(app, { onSubmit: vi.fn() });
+    const firstTextarea = ui.textarea;
+    const secondTextarea = second.querySelector('textarea');
+
+    expect(firstTextarea.id).not.toBe(secondTextarea.id);
+    expect(document.querySelectorAll(`#${firstTextarea.id}`)).toHaveLength(1);
+    expect(ui.form.querySelector('label').control).toBe(firstTextarea);
+    expect(second.querySelector('label').control).toBe(secondTextarea);
+  });
 });
