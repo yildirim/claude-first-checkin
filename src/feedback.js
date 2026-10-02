@@ -1,14 +1,18 @@
 // Feedback widget: a "Give feedback" button that reveals a small form.
 // `onSubmit` receives the trimmed message and may return a promise; if it
 // rejects, the form stays open and shows an error so the user can retry.
+let widgetCount = 0;
+
 export function createFeedbackWidget(container, { onSubmit }) {
+  // Unique per widget so each label points at its own textarea.
+  const messageId = `feedback-message-${++widgetCount}`;
   const root = document.createElement('div');
   root.className = 'feedback';
   root.innerHTML = `
     <button type="button" class="feedback-toggle" aria-expanded="false">Give feedback</button>
     <form class="feedback-form" hidden>
-      <label for="feedback-message">Your feedback</label>
-      <textarea id="feedback-message" name="message" rows="4" maxlength="1000"></textarea>
+      <label for="${messageId}">Your feedback</label>
+      <textarea id="${messageId}" name="message" rows="4" maxlength="1000"></textarea>
       <p class="feedback-error" role="alert" hidden></p>
       <button type="submit">Send</button>
       <button type="button" class="feedback-cancel">Cancel</button>
@@ -21,6 +25,7 @@ export function createFeedbackWidget(container, { onSubmit }) {
   const textarea = root.querySelector('textarea');
   const error = root.querySelector('.feedback-error');
   const submit = form.querySelector('button[type="submit"]');
+  const cancel = root.querySelector('.feedback-cancel');
   const thanks = root.querySelector('.feedback-thanks');
 
   function showError(text) {
@@ -31,17 +36,25 @@ export function createFeedbackWidget(container, { onSubmit }) {
   function setOpen(open) {
     form.hidden = !open;
     toggle.setAttribute('aria-expanded', String(open));
+    error.hidden = true;
     if (open) {
       thanks.hidden = true;
       textarea.focus();
     } else {
       form.reset();
-      error.hidden = true;
     }
   }
 
   toggle.addEventListener('click', () => setOpen(form.hidden));
-  root.querySelector('.feedback-cancel').addEventListener('click', () => setOpen(false));
+  cancel.addEventListener('click', () => setOpen(false));
+
+  // While a send is in flight the form can't be submitted again or closed,
+  // so the result always lands on the form the message came from.
+  function setSending(sending) {
+    submit.disabled = sending;
+    cancel.disabled = sending;
+    toggle.disabled = sending;
+  }
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -52,7 +65,7 @@ export function createFeedbackWidget(container, { onSubmit }) {
     }
 
     error.hidden = true;
-    submit.disabled = true;
+    setSending(true);
     try {
       await onSubmit(message);
       setOpen(false);
@@ -60,7 +73,7 @@ export function createFeedbackWidget(container, { onSubmit }) {
     } catch {
       showError('Sorry, your feedback could not be sent. Please try again.');
     } finally {
-      submit.disabled = false;
+      setSending(false);
     }
   });
 
